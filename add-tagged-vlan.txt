@@ -1,0 +1,36 @@
+#declare global vars
+:global iflist
+:global vlanlist
+:if ( [:len $iflist] = 0  || [:len $vlanlist] = 0 ) do={ 
+:put "set variables first!"
+:put "   :global iflist \"if1,if2\""
+:put "   :global vlanlist \"10,15\""
+:error "Quit!" 
+}
+
+# loop over vlan list
+  :foreach vlan in [:toarray $vlanlist] do={
+    :local newtagged [:toarray ""]
+    :local currenttagged  [:toarray ""]
+    :local currentuntagged  [:toarray ""]
+    :if ([/interface/bridge/vlan/find where vlan-ids=$vlan] ) do={
+      # already have vlanid configured, modify interface list
+      :local currenttagged  [/interface/bridge/vlan/get value-name=tagged  [/interface/bridge/vlan/find where vlan-ids=$vlan]]
+      :local currentuntagged  [/interface/bridge/vlan/get value-name=untagged  [/interface/bridge/vlan/find where vlan-ids=$vlan]]
+      :set newtagged $currenttagged
+      :foreach ifname in [:toarray $iflist ]  do={
+      # build new interface list for vlanid
+      #  :if ( ! ($currenttagged~"$ifname(;|\$)") ) do={ 
+           :if ( ! ( ($currenttagged~"$ifname(;|\$)") || ($currentuntagged~"$ifname(;|\$)") ) ) do={ 
+           :set newtagged ($newtagged,  [:toarray $ifname ] ) 
+        }
+      }
+       :put ( "set tagged interfaces for vlan $vlan to " . [:tostr $newtagged ] )
+       /interface/bridge/vlan/set bridge=bridge tagged=$newtagged [/interface/bridge/vlan/find where vlan-ids=$vlan]
+    } else= {
+     :put "add $vlan to interfaces $iflist" 
+     /interface/bridge/vlan/add bridge=bridge vlan-ids=$vlan tagged=$iflist
+    }
+  }
+# /system/script/environment/remove iflist 
+# /system/script/environment/remove vlanlist 
